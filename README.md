@@ -2,7 +2,7 @@
 
 A PyTorch reimplementation of the intracortical GRU-based phoneme decoder from [Willett et al. (2023)](https://www.nature.com/articles/s41586-023-06377-x), restructured to run on a single consumer GPU. Decodes multichannel neural population activity into phoneme sequences using a bidirectional GRU trained with Connectionist Temporal Classification (CTC).
 
-**Achieved 78.77% phoneme decoding accuracy — within 1.5 percentage points of the published Nature 2023 benchmark — without access to the original HPC infrastructure.**
+**Achieved 78.77% phoneme decoding accuracy - within 1.5 percentage points of the published Nature 2023 benchmark.**
 
 ---
 
@@ -11,18 +11,14 @@ A PyTorch reimplementation of the intracortical GRU-based phoneme decoder from [
 The full Willett et al. system decodes speech through three sequential stages:
 
 ```
-Stage 1 — GRU Phoneme Decoder     <- this repo
-          Maps T x 256 neural features to per-timestep
-          phoneme probability distributions via CTC-trained RNN
+Stage 1 — GRU Phoneme Decoder     
+          Maps T x 256 neural features to per-timestep phoneme probability distributions via CTC-trained RNN
 
 Stage 2 — Viterbi Search          (not implemented)
-          Selects the maximum-likelihood phoneme path
-          through the per-timestep posterior distributions
+          Selects the maximum-likelihood phoneme path through the per-timestep posterior distributions
 
 Stage 3 — Kaldi Trigram LM        (not implemented)
-          Beam search over 125,000-word vocabulary
-          combines phoneme path with language statistics
-          to produce final word sequence
+          Beam search over 125,000-word vocabulary combines phoneme path with language statistics to produce final word sequence
 ```
 
 This repo covers Stage 1. The 78.77% accuracy is phoneme-level CER evaluated directly on GRU output — the paper reports ~80.3% at this same stage (19.7% phoneme error rate) prior to language model decoding.
@@ -68,13 +64,13 @@ CTC Loss (training) / Greedy Decode (inference)
 
 ## Implementation
 
-The original codebase targets a Stanford HPC cluster running the full pipeline including Kaldi beam search — the primary compute bottleneck. Isolating Stage 1 and making two targeted adjustments enables training on a single consumer GPU with negligible accuracy cost:
+The original codebase targets a Stanford HPC cluster running the full pipeline. Isolating Stage 1 and making two targeted adjustments enables training on a single consumer GPU with negligible accuracy cost:
 
 | Hyperparameter | Original | This Repo | Notes |
 |---|---|---|---|
 | `nUnits` | 1024 | **512** | 2x reduction in GRU hidden dim; ~75% fewer recurrent parameters |
 | `batchSize` | 64 | **16** | 4x reduction in per-step memory |
-| `dropout` | 0.4 | **0.3** | Recalibrated for smaller model capacity |
+| `dropout` | 0.4 | **0.3** | Unchanged |
 | `nLayers` | 5 | 5 | Unchanged |
 | `bidirectional` | True | True | Unchanged |
 | `kernelLen` | 32 | 32 | Unchanged |
@@ -93,21 +89,7 @@ All parameters are defined and annotated in `train_model.py`.
 | Score | **78.77%** | 9.1% WER (50-word) / ~80.3% phoneme acc. |
 | Hardware | Single consumer GPU | Multi-GPU HPC cluster |
 
-Reproduces the Stage 1 phoneme decoding result from a landmark *Nature* 2023 paper to within 1.5 percentage points, on consumer hardware, by isolating the neural decoder from the broader Kaldi infrastructure. Confirms that strong phoneme-level representations are recoverable from the neural signal without the full decoding stack.
-
----
-
-## Setup
-
-**Requirements:** Python >= 3.9, PyTorch >= 2.0, CUDA GPU
-
-```bash
-git clone https://github.com/YOUR_USERNAME/neural_seq_decoder.git
-cd neural_seq_decoder
-pip install -e .
-```
-
-Download the dataset from [Dryad](https://datadryad.org/stash/dataset/doi:10.5061/dryad.x69p8czpq).
+Reproduces the Stage 1 phoneme decoding result from a landmark *Nature* 2023 paper to within 1.5 percentage points, on consumer hardware, by isolating the neural decoder from the broader infrastructure. Confirms that strong phoneme-level representations are recoverable from the neural signal without the full decoding stack.
 
 ---
 
@@ -138,16 +120,11 @@ python train_model.py --output_dir ./outputs --dataset_path ./data/ptDecoder_ctc
 
 Evaluates on the test set every 100 batches, printing CTC loss and phoneme CER. Best checkpoint (minimum CER) saved to `outputDir/modelWeights`.
 
-```
-batch 0,    ctc_loss: 3.5562,  cer: 0.9823,  time/batch: 0.412s
-batch 100,  ctc_loss: 2.1038,  cer: 0.7432,  time/batch: 0.389s
-batch 9900, ctc_loss: 0.8471,  cer: 0.2123,  time/batch: 0.381s
-```
 
 **Loading a saved model**
 ```python
 from neural_decoder.neural_decoder_trainer import loadModel
-model = loadModel('./outputs', nInputLayers=24, device='cuda')
+model = loadModel('./outputs')
 model.eval()
 ```
 
